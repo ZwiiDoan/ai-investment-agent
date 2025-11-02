@@ -1,0 +1,62 @@
+[project]
+name = "ai-investment-agent"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "zwiid",email = "zwii.doan@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.10,<4.0"
+dependencies = [
+    "fastapi (>=0.119.0,<0.120.0)",
+    "uvicorn (>=0.37.0,<0.38.0)",
+    "python-dotenv (>=1.1.1,<2.0.0)",
+    "pydantic-settings (>=2.11.0,<3.0.0)",
+    "openai (>=2.6.0,<3.0.0)",
+    "loguru (>=0.7.3,<0.8.0)",
+    "sentence-transformers (>=5.1.2,<6.0.0)",
+    "langchain (>=1.0.2,<2.0.0)",
+    "pgvector (>=0.4.1,<0.5.0)",
+    "psycopg2-binary (>=2.9.11,<3.0.0)",
+    "langchain-text-splitters (>=1.0.0,<2.0.0)",
+    "prometheus-client (>=0.23.1,<0.24.0)",
+    "prometheus-fastapi-instrumentator (>=7.1.0,<8.0.0)"
+]
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[dependency-groups]
+dev = [
+    "black (>=25.9.0,<26.0.0)",
+    "ruff (>=0.14.1,<0.15.0)",
+    "mypy (>=1.18.2,<2.0.0)",
+    "types-python-dateutil (>=2.9.0.20251008,<3.0.0.0)",
+    "taskipy (>=1.14.1,<2.0.0)",
+    "locust (>=2.42.0,<3.0.0)"
+]
+
+[tool.black]
+line-length = 100
+target-version = ["py310","py311","py312"]
+
+[tool.ruff]
+line-length = 100
+select = ["E","F","I","UP","B"]
+ignore = ["E203"]  # compatible with Black
+target-version = "py311"
+
+[tool.mypy]
+python_version = "3.11"
+strict = false
+warn_unused_ignores = true
+warn_redundant_casts = true
+disallow_untyped_defs = true
+
+[tool.taskipy.tasks]
+fmt = "black ."
+lint = "ruff check ."
+type = "mypy ."
+check = "ruff check . && mypy ."
+dev = "uvicorn main:app --reload"
