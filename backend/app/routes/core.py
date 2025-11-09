@@ -1,12 +1,16 @@
+from datetime import UTC, datetime
+
 from fastapi import APIRouter
-from datetime import datetime, UTC
+
 from app.core.settings import settings
 
 router = APIRouter(tags=["core"])
 
+
 @router.get("/")
 def root() -> dict:
     return {"message": f"{settings.app_name} is running"}
+
 
 @router.get("/health")
 def health() -> dict:

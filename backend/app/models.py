@@ -1,8 +1,8 @@
 from pydantic import BaseModel
-from typing import Optional, Dict
+
 
 class Document(BaseModel):
-    id: Optional[str] = None
+    id: str | None = None
     title: str
     text: str
-    metadata: Optional[Dict] = None
+    metadata: dict | None = None

@@ -1,10 +1,25 @@
 # ai_service.py
 # Place your AI service logic here.
-
+import time
 
 import openai
+from opentelemetry import metrics
+from opentelemetry.exporter.prometheus import PrometheusMetricReader
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.resources import Resource
 
 from app.core.settings import settings
+
+
+meter = metrics.get_meter(__name__)
+
+llm_tokens_counter = meter.create_counter(
+    name="ai_llm_tokens_total", description="Total tokens used by LLM in /query endpoint"
+)
+llm_query_time_histogram = meter.create_histogram(
+    name="ai_llm_query_time_seconds",
+    description="Time taken for LLM completion in /query endpoint (seconds)",
+)
 
 
 class AIService:
@@ -42,9 +57,21 @@ class AIService:
         messages.append({"role": "user", "content": prompt})
 
         try:
+            start_time = time.time()
             response = await self.openai_client.chat.completions.create(
                 model=self.model, messages=messages
             )
+            duration = time.time() - start_time
+            llm_query_time_histogram.record(duration)
+            # Track tokens if available
+            tokens_used = None
+            if (
+                hasattr(response, "usage")
+                and response.usage
+                and hasattr(response.usage, "total_tokens")
+            ):
+                tokens_used = response.usage.total_tokens
+                llm_tokens_counter.add(tokens_used)
             return response.choices[0].message.content
         except openai.OpenAIError as e:
             # Handle OpenAI API errors

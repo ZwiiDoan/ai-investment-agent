@@ -2,10 +2,15 @@ from app.models import Document
 from app.services.chunking import ChunkingService
 from app.services.embeddings import LocalEmbeddingService
 from app.services.vectordb import VectorDBService
-from typing import Optional
+
 
 class RAGPipeline:
-    def __init__(self, chunk_size: int = 500, chunk_overlap: int = 50, embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"):
+    def __init__(
+        self,
+        chunk_size: int = 500,
+        chunk_overlap: int = 50,
+        embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2",
+    ):
         self.chunker = ChunkingService(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
         self.embedder = LocalEmbeddingService(model_name=embedding_model)
         self.vectordb = VectorDBService()

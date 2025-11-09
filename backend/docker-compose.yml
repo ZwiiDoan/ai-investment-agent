@@ -1,13 +1,13 @@
-version: '3.8'
+version: "3.9"
+
 services:
   db:
-    image: ankane/pgvector
+    image: ankane/pgvector:latest
     environment:
       POSTGRES_DB: vectordb
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-    ports:
-      - "5432:5432"
+    ports: ["5432:5432"]
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -15,19 +15,51 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-  prometheus:
-    image: prom/prometheus:latest
+
+  otel-collector:
+    image: otel/opentelemetry-collector:0.106.0
+    command: ["--config=/etc/otelcol/config.yaml"]
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./otel-collector-config.yaml:/etc/otelcol/config.yaml:ro
     ports:
-      - "9090:9090"
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+      - "8889:8889"   # Prometheus scrape endpoint (collector metrics)
+    depends_on:
+      - jaeger
+    restart: unless-stopped
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.60
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    ports:
+      - "16686:16686" # Jaeger UI
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.0.0
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=2d"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports: ["9090:9090"]
+    depends_on:
+      - otel-collector
+    restart: unless-stopped
 
   grafana:
-    image: grafana/grafana:latest
-    ports:
-      - "3001:3000"
+    image: grafana/grafana:11.2.2
     environment:
+      - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - ./grafana-provisioning:/etc/grafana/provisioning:ro
+    ports: ["3001:3000"]
+    depends_on:
+      - prometheus
+    restart: unless-stopped
 
 volumes:
   pgdata:

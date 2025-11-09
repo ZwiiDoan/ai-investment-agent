@@ -1,24 +1,99 @@
-# Async & Logging Implementation Notes
 
-## Async Endpoint
+# AI Investment Agent Backend
 
-The `/ai-response` endpoint is implemented as an async FastAPI route, simulating I/O with `await asyncio.sleep(0.1)`. This allows the server to handle many concurrent requests efficiently.
+This backend implements a modular, production-grade Retrieval-Augmented Generation (RAG) API for investment research, with robust observability and structured logging.
 
-## Synchronous Endpoint
+## API Endpoints
 
-For comparison, `/ai-response-sync` is implemented as a synchronous route using `time.sleep(0.1)`. This blocks the server process, reducing concurrency and throughput under load.
+### `/ai/query` (POST)
+**Description:** Main RAG endpoint. Accepts a user question, retrieves relevant context, and returns an LLM-generated answer with sources.
 
-## Structured Logging
+**Request:**
+```json
+{ "question": "What is the current outlook for ASX tech stocks?" }
+```
 
-Structured logging is implemented using [Loguru](https://loguru.readthedocs.io/). Logs are written to `logs/app.log` with weekly rotation. All HTTP requests and responses are logged via FastAPI middleware.
+**Response:**
+```json
+{
+	"answer": "...",
+	"sources": ["doc1", "doc2"],
+	"chunks": ["...", "..."]
+}
+```
 
-## Performance Findings
+### `/documents/` (POST)
+**Description:** Bulk upload and index documents for retrieval.
+**Request:** List of document objects.
 
-- Async endpoint (`/ai-response`) handled significantly more concurrent requests with lower latency compared to the sync endpoint (`/ai-response-sync`).
-- Synchronous endpoint caused blocking and higher response times under load.
-- See `reports/` for detailed Locust performance reports.
+### `/documents/search` (POST)
+**Description:** Embed a query and return top-k most similar document chunks with similarity scores.
+
+### `/documents/{doc_id}` (GET/DELETE)
+**Description:** Retrieve or delete a document and its embeddings.
+
+### `/documents/` (GET)
+**Description:** List documents, optionally filter by title.
+
+### `/ai/response` (GET)
+**Description:** (Dev/test) Echo endpoint for async simulation.
+
+### `/ai/response-sync` (GET)
+**Description:** (Dev/test) Echo endpoint for sync simulation.
+
+## Observability & Tracing
+
+### Logging
+
+Structured JSON logs (`logs/app.log`) include `req_id`, `route`, `latency_ms`, `status`, and `trace_id` for trace correlation.
+
+### Metrics (OpenTelemetry → Prometheus)
+
+Exported via `/metrics` and visualized in Grafana:
+
+* `ai_query_time_seconds` (histogram) – end-to-end query latency.
+* `ai_retrieval_latency_seconds` (histogram) – vector search time.
+* `ai_llm_query_time_seconds` (histogram) – LLM call duration.
+* `ai_llm_tokens_total` (counter) – total LLM tokens consumed.
+* `api_search_requests_total`, `embedding_failures_total` (counters).
+
+Grafana dashboard: [AI Investment Agent Backend Observability](http://localhost:3001/d/fastapi-observability/ai-investment-agent-backend)
+
+### Tracing (Jaeger)
+
+OpenTelemetry spans are exported to Jaeger at `http://localhost:16686`.
+
+Span structure for `/ai/query`:
+
+```text
+ai.query
+	├─ embedding.query
+	├─ retrieval.vector_search
+	└─ llm.call
+```
+
+Attributes include: `question.length`, `retrieval.top_k`, `retrieval.result_count`, `sources.count`, `llm.prompt.length`.
+
+Trace/log correlation via `trace_id` in each request log.
+
+### Sampling
+
+Development: 100% sample rate. Production plan: ratio sampler (e.g. 0.2) + always sample errors.
+
+### Retention
+
+Log rotation weekly; metrics retention managed by Prometheus configuration.
+
+## Architecture
+
+* **FastAPI** for API layer
+* **PostgreSQL + pgvector** for vector DB
+* **OpenAI** for LLM (via async API)
+* **Prometheus** and **Grafana** for metrics and dashboards
+* **Loguru** for structured logging
 
 ## References
 
-- See `plans/month1_week1_day4.md` for the original task breakdown.
-- ADR #1 (Language & Framework Choice): See `../adr/adr-1-Language and Framework Choice - Python and FastAPI.md`
+* ADR #1 (Language & Framework Choice): See `../adr/adr-1-Language and Framework Choice - Python and FastAPI.md`
+* ADR #2 (RAG System Design): See `../adr/adr-2-rag-design-choice.md`
+

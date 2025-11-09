@@ -1,11 +1,10 @@
-from typing import Optional, List
-from app.models import Document
 import uuid
-import psycopg2
-from psycopg2.pool import SimpleConnectionPool
-from psycopg2.extras import Json
-from app.core.settings import settings
 
+from psycopg2.extras import Json
+from psycopg2.pool import SimpleConnectionPool
+
+from app.core.settings import settings
+from app.models import Document
 
 # Connection pool (min 1, max 5 connections for dev)
 _pool = SimpleConnectionPool(
@@ -18,11 +17,14 @@ _pool = SimpleConnectionPool(
     port=settings.pgvector_port,
 )
 
+
 def _get_conn():
     return _pool.getconn()
 
+
 def _put_conn(conn):
     _pool.putconn(conn)
+
 
 def _init_schema():
     conn = _get_conn()
@@ -39,9 +41,12 @@ def _init_schema():
                 );
                 """
             )
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_raw_documents_title ON raw_documents(title);")
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_raw_documents_title ON raw_documents(title);"
+            )
     finally:
         _put_conn(conn)
+
 
 _init_schema()
 
@@ -65,7 +70,7 @@ def save_document(doc: Document) -> Document:
         _put_conn(conn)
 
 
-def get_document(doc_id: str) -> Optional[Document]:
+def get_document(doc_id: str) -> Document | None:
     conn = _get_conn()
     try:
         with conn, conn.cursor() as cur:
@@ -81,6 +86,7 @@ def get_document(doc_id: str) -> Optional[Document]:
     finally:
         _put_conn(conn)
 
+
 def delete_document(doc_id: str) -> bool:
     conn = _get_conn()
     try:
@@ -90,7 +96,8 @@ def delete_document(doc_id: str) -> bool:
     finally:
         _put_conn(conn)
 
-def list_documents(title_filter: Optional[str] = None, limit: int = 50) -> List[Document]:
+
+def list_documents(title_filter: str | None = None, limit: int = 50) -> list[Document]:
     conn = _get_conn()
     try:
         with conn, conn.cursor() as cur:
