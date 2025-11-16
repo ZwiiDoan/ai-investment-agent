@@ -1,34 +1,43 @@
 import json
 import os
+
 from opentelemetry import metrics, trace
-from opentelemetry.exporter.prometheus import PrometheusMetricReader
-from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-from opentelemetry.sdk.metrics import MeterProvider
-from opentelemetry.sdk.resources import Resource
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
-    OTLPSpanExporter as OTLPHTTPSpanExporter,
-)
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
     OTLPSpanExporter as OTLPGRPCSpanExporter,
 )
+from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
+    OTLPSpanExporter as OTLPHTTPSpanExporter,
+)
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
+# Global reference to PrometheusMetricReader
+prometheus_reader = None
 from loguru import logger
+
+from app.core.middleware.logging import RequestIdUserIdMiddleware, setup_structlog
 from app.core.settings import settings
-from starlette.responses import Response as StarletteResponse
 
 
 def setup_otel(app):
+    setup_structlog()
+    app.add_middleware(RequestIdUserIdMiddleware)
     # Print all OTEL-related environment variables for debugging
     print("[DEBUG] ENVIRONMENT VARIABLES:")
     for k, v in os.environ.items():
         if "OTEL" in k:
             print(f"{k}={v}")
 
-    # Metrics setup
+    # Metrics setup (send to OTEL Collector via OTLP HTTP)
     resource = Resource(attributes={"service.name": "ai-investment-agent-backend"})
-    reader = PrometheusMetricReader()
-    provider = MeterProvider(resource=resource, metric_readers=[reader])
+    otlp_exporter = OTLPMetricExporter(endpoint="http://localhost:4318/v1/metrics")
+    metric_reader = PeriodicExportingMetricReader(otlp_exporter)
+    provider = MeterProvider(resource=resource, metric_readers=[metric_reader])
     metrics.set_meter_provider(provider)
 
     # Tracing setup
@@ -71,9 +80,3 @@ def setup_otel(app):
             }
         )
     )
-
-
-def metrics_endpoint():
-    # OpenTelemetry Prometheus exporter exposes metrics via /metrics
-    reader = metrics.get_meter_provider()._metric_readers[0]
-    return StarletteResponse(reader.collect(), media_type="text/plain")

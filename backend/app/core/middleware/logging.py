@@ -1,9 +1,42 @@
 import json
+import os
 import time
 import uuid
+
+import structlog
 from fastapi import Request, Response
-from opentelemetry.trace import get_current_span
 from loguru import logger
+from opentelemetry.trace import get_current_span
+from starlette.middleware.base import BaseHTTPMiddleware
+
+
+def setup_structlog():
+    import structlog
+
+    structlog.configure(
+        processors=[
+            structlog.processors.TimeStamper(fmt="iso"),
+            structlog.processors.JSONRenderer(),
+        ],
+        wrapper_class=structlog.make_filtering_bound_logger(10),
+        context_class=dict,
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        cache_logger_on_first_use=True,
+    )
+
+
+class RequestIdUserIdMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        # Generate or extract request_id
+        request_id = request.headers.get("X-Request-Id") or os.urandom(8).hex()
+        # Extract user_id if present (could be from auth or header)
+        user_id = request.headers.get("X-User-Id", "anonymous")
+        # Bind to structlog context for this request
+        structlog.contextvars.bind_contextvars(request_id=request_id, user_id=user_id)
+        response = await call_next(request)
+        # Unbind after request
+        structlog.contextvars.clear_contextvars()
+        return response
 
 
 async def log_requests(request: Request, call_next):

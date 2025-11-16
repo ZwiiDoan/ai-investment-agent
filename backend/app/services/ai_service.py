@@ -4,12 +4,8 @@ import time
 
 import openai
 from opentelemetry import metrics
-from opentelemetry.exporter.prometheus import PrometheusMetricReader
-from opentelemetry.sdk.metrics import MeterProvider
-from opentelemetry.sdk.resources import Resource
 
 from app.core.settings import settings
-
 
 meter = metrics.get_meter(__name__)
 

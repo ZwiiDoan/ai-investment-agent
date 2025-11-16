@@ -12,10 +12,10 @@ embedding_failures_total = meter.create_counter(
 
 from typing import Any
 
-
-from fastapi import APIRouter, Body, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from pydantic import BaseModel
 
+from app.core.auth import get_api_key
 from app.models import Document
 from app.services.rag_pipeline import RAGPipeline
 from app.services.storage import delete_document, get_document, list_documents, save_document
@@ -34,7 +34,7 @@ rag_pipeline = RAGPipeline()
 
 
 @router.post("/", response_model=DocumentsResponse)
-def create_documents(request: DocumentsRequest):
+def create_documents(request: DocumentsRequest, api_key: str = Depends(get_api_key)):
     """
     Accepts an object with a 'docs' field (list of documents), saves and indexes each for retrieval.
     Returns an object with the list of saved documents in 'docs'.
@@ -48,7 +48,7 @@ def create_documents(request: DocumentsRequest):
 
 
 @router.get("/{doc_id}", response_model=Document)
-def read_document(doc_id: str):
+def read_document(doc_id: str, api_key: str = Depends(get_api_key)):
     doc = get_document(doc_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -59,12 +59,13 @@ def read_document(doc_id: str):
 def list_docs(
     title: str | None = Query(default=None, description="Optional title filter"),
     limit: int = Query(default=50, le=200),
+    api_key: str = Depends(get_api_key),
 ):
     return list_documents(title_filter=title, limit=limit)
 
 
 @router.delete("/{doc_id}")
-def remove_document(doc_id: str):
+def remove_document(doc_id: str, api_key: str = Depends(get_api_key)):
     # Delete raw document
     deleted_doc = delete_document(doc_id)
     # Delete embeddings/chunks
@@ -83,6 +84,7 @@ def remove_document(doc_id: str):
 def search_documents(
     query: str = Body(..., embed=True, description="Query string to search for."),
     top_k: int = Body(3, embed=True, description="Number of top results to return."),
+    api_key: str = Depends(get_api_key),
 ):
     """
     Embed the query and return top-k most similar chunks with similarity scores.

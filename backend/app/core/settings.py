@@ -1,7 +1,6 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
-
-
 import os
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -10,6 +9,9 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     model: str = "gpt-4o-mini"
     allowed_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
+
+    # API Key for authentication
+    x_api_key: str = "dev-secret-key"
 
     # Vector DB credentials (from .env)
     pgvector_db: str = "vectordb"

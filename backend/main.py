@@ -1,16 +1,18 @@
 import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
+from app.core.error_handlers import register_exception_handlers
+from app.core.middleware.logging import log_requests
+
 # Project-specific imports
 from app.core.settings import settings
-from app.core.error_handlers import register_exception_handlers
+from app.core.telemetry import setup_otel
 from app.routes.ai import router as ai_router
 from app.routes.core import router as core_router
 from app.routes.documents import router as documents_router
-from app.core.telemetry import setup_otel, metrics_endpoint
-from app.core.middleware.logging import log_requests
 
 app = FastAPI(title=settings.app_name)
 register_exception_handlers(app)
@@ -29,9 +31,6 @@ logger.add("logs/app.log", rotation="1 week", serialize=True)  # JSON logs
 
 # OpenTelemetry setup (metrics, tracing, exporter)
 setup_otel(app)
-
-# Expose /metrics endpoint for Prometheus scraping
-app.get("/metrics")(metrics_endpoint)
 
 # Register routers
 app.include_router(documents_router)

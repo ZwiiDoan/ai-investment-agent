@@ -1,14 +1,14 @@
 import asyncio
 import time
-from opentelemetry import trace
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 from loguru import logger
-from opentelemetry import metrics
+from opentelemetry import metrics, trace
 
+from app.core.auth import get_api_key
 from app.services.ai_service import AIService
-from app.services.rag_pipeline import RAGPipeline
 from app.services.memory import memory  # in-memory conversation store
+from app.services.rag_pipeline import RAGPipeline
 
 # Use global meter provider set in main.py
 meter = metrics.get_meter(__name__)
@@ -33,7 +33,7 @@ class QueryRequest(BaseModel):
 
 
 @router.post("/query")
-async def query_endpoint(payload: QueryRequest):
+async def query_endpoint(payload: QueryRequest, api_key: str = Depends(get_api_key)):
     """
     Accepts: { "question": "..." }
     Returns: { "answer": "...", "sources": [doc_id, ...], "chunks": [chunk, ...] }
@@ -68,9 +68,12 @@ async def query_endpoint(payload: QueryRequest):
             history_messages = memory.last_n(conversation_id, payload.max_history)
         # Exclude the current user question duplication (last message just appended)
         # Format history as role-prefixed lines
-        history_block = "\n".join([
-            f"{m['role'].upper()}: {m['content']}" for m in history_messages[:-1]  # all but newest user question
-        ])
+        history_block = "\n".join(
+            [
+                f"{m['role'].upper()}: {m['content']}"
+                for m in history_messages[:-1]  # all but newest user question
+            ]
+        )
         context_text = "\n\n".join(chunks)
         llm_prompt = (
             (f"Conversation History:\n{history_block}\n\n" if history_block else "")
@@ -98,13 +101,15 @@ async def query_endpoint(payload: QueryRequest):
 
 
 @router.get("/response")
-async def get_ai_response(prompt: str):
+async def get_ai_response(prompt: str, api_key: str = Depends(get_api_key)):
     await asyncio.sleep(0.1)  # simulate I/O
     return {"message": f"Received: {prompt}"}
 
 
 @router.get("/response-sync")
-def ai_response_sync(prompt: str = Query(..., description="Prompt for the LLM")):
+def ai_response_sync(
+    prompt: str = Query(..., description="Prompt for the LLM"), api_key: str = Depends(get_api_key)
+):
     import time
 
     time.sleep(0.1)

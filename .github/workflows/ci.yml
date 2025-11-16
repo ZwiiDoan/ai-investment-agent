@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+# Cancel in-progress runs of the same PR/branch
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    strategy:
+      matrix:
+        python-version: [ '3.11' ]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+
+      - name: Install Poetry
+        uses: abatilo/actions-poetry@v3
+        with:
+          poetry-version: 1.8.3
+
+      - name: Configure in-project virtualenv
+        run: poetry config virtualenvs.in-project true
+
+      - name: Cache Poetry & Virtualenv
+        uses: actions/cache@v4
+        with:
+          path: |
+            backend/.venv
+            ~/.cache/pypoetry
+          key: ${{ runner.os }}-poetry-${{ hashFiles('backend/poetry.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-poetry-
+
+      - name: Install dependencies (no root)
+        run: poetry install --no-root
+
+      - name: Ruff (lint)
+        run: poetry run ruff check .
+
+      - name: Mypy (type check)
+        run: poetry run mypy .
+
+      - name: Pytest (unit tests + coverage)
+        env:
+          OPENAI_API_KEY: dummy
+        run: poetry run pytest --maxfail=1 --disable-warnings -q --cov=. --cov-report=xml
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: coverage-xml
+          path: backend/coverage.xml
+
+      - name: Fail if coverage xml missing
+        run: |
+          if [ ! -f coverage.xml ]; then echo 'coverage.xml missing'; exit 1; fi
+
+  # Optional status summary (can be expanded later)
+  summary:
+    needs: build-test
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Report result
+        run: |
+          echo "Build/Test result: ${{ needs.build-test.result }}"
